@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #1E1B4B;
+  --color-secondary: #6366F1;
+  --color-tertiary: #F8FAFC;
+  --color-accent: #0051D5;
+  --font-inter: 'Inter', sans-serif;
+  --font-poppins: 'Poppins', sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #F8FAFC;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+.markdown-body h1 { font-family: 'Poppins', sans-serif; font-size: 20px; font-weight: 700; color: #1E1B4B; margin: 16px 0 10px; }
+.markdown-body h2 { font-family: 'Poppins', sans-serif; font-size: 17px; font-weight: 600; color: #1E1B4B; margin: 16px 0 8px; }
+.markdown-body h3 { font-family: 'Poppins', sans-serif; font-size: 15px; font-weight: 600; color: #1E1B4B; margin: 14px 0 6px; }
+.markdown-body p { margin: 0 0 10px; }
+.markdown-body ul, .markdown-body ol { margin: 0 0 10px; padding-left: 22px; }
+.markdown-body li { margin-bottom: 4px; }
+.markdown-body strong { color: #1E1B4B; font-weight: 600; }
+.markdown-body table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+.markdown-body th, .markdown-body td { border: 1px solid #E2E8F0; padding: 8px 10px; text-align: left; font-size: 13px; }
+.markdown-body th { background: #F8FAFC; font-weight: 600; }
+.markdown-body code { background: #EFF4FF; padding: 2px 6px; border-radius: 4px; font-size: 12.5px; color: #0051D5; }
+.markdown-body hr { border: none; border-top: 1px solid #E2E8F0; margin: 16px 0; }
