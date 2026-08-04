@@ -7,6 +7,7 @@ const TABS = [
   { key: 'task', label: 'Daily Task' },
   { key: 'mini_project', label: 'Mini Project' },
   { key: 'main_project', label: 'Main Project' },
+  { key: 'seminar', label: 'Seminar' },
 ];
 
 export default function Assignments() {

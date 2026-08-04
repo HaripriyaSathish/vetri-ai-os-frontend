@@ -108,6 +108,8 @@ export default function Reports() {
       'Total No. of Class Days', 'Total Present Days', 'Total Attendance %',
       'Assigned Daily Tasks', 'Total Daily Tasks Completed', 'Daily Tasks Completed %',
       'Assigned Mini Projects', 'Total Mini Project Completed', 'Mini Project Completed %',
+      'Assigned Main Projects', 'Total Main Project Completed', 'Main Project Completed %',
+      'Assigned Seminars', 'Total Seminar Completed', 'Seminar Completed %',
     ];
 
     const dataRows = rows.map((r) => [
@@ -115,6 +117,8 @@ export default function Reports() {
       r.total_class_days, r.total_present_days, `${r.attendance_percentage}%`,
       r.assigned_daily_tasks, r.completed_daily_tasks, `${r.daily_task_percentage}%`,
       r.assigned_mini_projects, r.completed_mini_projects, `${r.mini_project_percentage}%`,
+      r.assigned_main_projects, r.completed_main_projects, `${r.main_project_percentage}%`,
+      r.assigned_seminars, r.completed_seminars, `${r.seminar_percentage}%`,
     ]);
 
     const sheetData = [[title], tableHeaders, ...dataRows];
@@ -162,7 +166,7 @@ export default function Reports() {
       const rowColor = isSafe ? 'C6EFCE' : 'FFC7CE';
       const rowFontColor = isSafe ? '006100' : '9C0006';
 
-      [3, 8, 11, 14].forEach((colIdx) => {
+      [3, 8, 11, 14, 17, 20].forEach((colIdx) => {
         const cellRef = XLSX.utils.encode_cell({ r: excelRow, c: colIdx });
         if (worksheet[cellRef]) {
           worksheet[cellRef].s = {
@@ -187,7 +191,8 @@ export default function Reports() {
     worksheet['!cols'] = [
       { wch: 6 }, { wch: 14 }, { wch: 18 }, { wch: 12 }, { wch: 14 }, { wch: 18 },
       { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 18 }, { wch: 16 },
-      { wch: 16 }, { wch: 18 }, { wch: 16 },
+      { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 16 },
+      { wch: 14 }, { wch: 16 }, { wch: 14 },
     ];
 
     return worksheet;
