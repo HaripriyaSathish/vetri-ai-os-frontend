@@ -70,11 +70,27 @@ export default function CreateAccountPanel({ enquiry, payment, onCreated }) {
 
   if (enquiry.account_created) {
     return (
-      <div style={{ background: '#ECFDF5', borderRadius: '10px', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <CheckCircle2 size={16} color="#059669" />
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '13px', color: '#059669', margin: 0, fontWeight: 600 }}>
-          Account already created for this student.
+      <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '10px', padding: '18px 20px' }}>
+        <p style={{ fontFamily: 'Poppins, sans-serif', fontSize: '14px', fontWeight: 600, color: '#059669', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <CheckCircle2 size={16} /> Account Created
         </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {[
+            { label: 'Username', value: enquiry.account_created_username },
+            { label: 'Password', value: enquiry.created_password },
+            { label: 'Official Email', value: enquiry.account_created_email },
+          ].map(({ label, value }) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: '6px', padding: '8px 12px' }}>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', color: '#76777D' }}>{label}: <strong style={{ color: '#1E1B4B' }}>{value || '—'}</strong></span>
+              {value && (
+                <button onClick={() => copyToClipboard(value, label)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0051D5' }}>
+                  {copied === label ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -110,7 +126,7 @@ export default function CreateAccountPanel({ enquiry, payment, onCreated }) {
           ))}
         </div>
         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '11px', color: '#76777D', margin: '10px 0 0' }}>
-          Copy these and send to the student via WhatsApp — this panel won't show the password again.
+          Copy these and send to the student via WhatsApp.
         </p>
       </div>
     );
