@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react';
 import DashboardShell from '../../../core/layout/DashboardShell';
-import { getUngroupedStudents, getTrainers, groupIntoBatch, sendWelcomeEmail, notifyTrainer } from '../api';
-import { Users, CheckCircle2, X, Mail } from 'lucide-react';
+import { getUngroupedStudents, getTrainers, groupIntoBatch, sendWelcomeEmail, notifyTrainer, getBatches, getBatchStudents } from '../api';
+import { Users, CheckCircle2, X, Mail, AlertTriangle } from 'lucide-react';
 
 function displayName(s) {
   const full = [s.first_name, s.last_name].filter(Boolean).join(' ').trim();
   return full || s.username;
+}
+
+function trainerDisplayName(b) {
+  const full = [b.trainer_first_name, b.trainer_last_name].filter(Boolean).join(' ').trim();
+  return full || b.trainer_username;
 }
 
 function buildTrainerDefaults(trainer, roster, form) {
@@ -39,13 +44,15 @@ function buildWelcomeDefaults() {
   };
 }
 
-function EmailModal({ trainer, roster, form, onClose }) {
+function EmailModal({ trainer, roster, form, batchId, onClose }) {
   const [tab, setTab] = useState('trainer'); // 'trainer' | 'welcome'
   const [trainerForm, setTrainerForm] = useState(() => buildTrainerDefaults(trainer, roster, form));
   const [welcomeForm, setWelcomeForm] = useState(buildWelcomeDefaults);
   const [welcomeStudentIds, setWelcomeStudentIds] = useState(roster.map((s) => s.id));
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState('');
+  const [trainerSent, setTrainerSent] = useState(false);
+  const [welcomeSent, setWelcomeSent] = useState(false);
 
   const toggleWelcomeStudent = (id) => {
     setWelcomeStudentIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -63,8 +70,9 @@ function EmailModal({ trainer, roster, form, onClose }) {
     setSending(true);
     setStatus('');
     try {
-      await notifyTrainer(trainerForm);
+      await notifyTrainer({ ...trainerForm, batch_id: batchId });
       setStatus('Trainer notified successfully.');
+      setTrainerSent(true);
     } catch (err) {
       setStatus(err.response?.data?.detail || 'Failed to notify trainer.');
     } finally {
@@ -85,8 +93,10 @@ function EmailModal({ trainer, roster, form, onClose }) {
         cc: welcomeForm.cc,
         subject: welcomeForm.subject,
         body: welcomeForm.body,
+        batch_id: batchId,
       });
       setStatus(`Sent to ${res.data.sent_count} student(s).${res.data.skipped?.length ? ` ${res.data.skipped.length} skipped.` : ''}`);
+      if (res.data.sent_count > 0) setWelcomeSent(true);
     } catch (err) {
       setStatus(err.response?.data?.detail || 'Failed to send welcome email.');
     } finally {
@@ -105,7 +115,7 @@ function EmailModal({ trainer, roster, form, onClose }) {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
           <h3 style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 600, fontSize: '17px', color: '#1E1B4B', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Mail size={18} color="#0051D5" /> Batch Created — Send Notifications
+            <Mail size={18} color="#0051D5" /> {form?.batch_name || 'Batch'} — Send Notifications
           </h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
             <X size={20} color="#76777D" />
@@ -120,10 +130,10 @@ function EmailModal({ trainer, roster, form, onClose }) {
               fontFamily: 'Inter, sans-serif', fontSize: '13px', fontWeight: 600,
               color: tab === 'trainer' ? '#0051D5' : '#76777D',
               borderBottom: tab === 'trainer' ? '2px solid #0051D5' : '2px solid transparent',
-              marginRight: '16px',
+              marginRight: '16px', display: 'flex', alignItems: 'center', gap: '6px',
             }}
           >
-            Notify Trainer
+            Notify Trainer {trainerSent && <CheckCircle2 size={13} color="#059669" />}
           </button>
           <button
             onClick={() => setTab('welcome')}
@@ -132,9 +142,10 @@ function EmailModal({ trainer, roster, form, onClose }) {
               fontFamily: 'Inter, sans-serif', fontSize: '13px', fontWeight: 600,
               color: tab === 'welcome' ? '#0051D5' : '#76777D',
               borderBottom: tab === 'welcome' ? '2px solid #0051D5' : '2px solid transparent',
+              display: 'flex', alignItems: 'center', gap: '6px',
             }}
           >
-            Welcome Students
+            Welcome Students {welcomeSent && <CheckCircle2 size={13} color="#059669" />}
           </button>
         </div>
 
@@ -212,12 +223,16 @@ export default function BatchGrouping() {
 
   const [form, setForm] = useState({
     batch_name: '', trainer_id: '', course_name: '', training_mode: 'Online',
-    programming_language: '', start_date: '', end_date: '', class_start_time: '', max_students: 45,
+    programming_language: '', start_date: '', end_date: '', class_start_time: '', class_end_time: '', max_students: 45,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [emailModal, setEmailModal] = useState(null); // { trainer, roster, form }
+  const [emailModal, setEmailModal] = useState(null); // { trainer, roster, form, batchId }
+
+  // Pending notifications — batches (any, from any session) still missing trainer/welcome emails
+  const [pendingBatches, setPendingBatches] = useState([]);
+  const [loadingPending, setLoadingPending] = useState(true);
 
   const load = () => {
     setLoading(true);
@@ -230,7 +245,19 @@ export default function BatchGrouping() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  const loadPending = () => {
+    setLoadingPending(true);
+    getBatches()
+      .then((res) => {
+        setPendingBatches(res.data.filter((b) => !b.trainer_notified || !b.welcome_email_sent));
+      })
+      .finally(() => setLoadingPending(false));
+  };
+
+  useEffect(() => {
+    load();
+    loadPending();
+  }, []);
 
   const toggleStudent = (id) => {
     setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -260,17 +287,44 @@ export default function BatchGrouping() {
         ...form,
         end_date: form.end_date || null,
         class_start_time: form.class_start_time || null,
+        class_end_time: form.class_end_time || null,
       });
       setSuccess(res.data.detail);
-      setEmailModal({ trainer: res.data.trainer, roster: res.data.roster, form });
+      setEmailModal({ trainer: res.data.trainer, roster: res.data.roster, form, batchId: res.data.batch_id });
       setSelected([]);
-      setForm({ batch_name: '', trainer_id: trainers[0]?.id || '', course_name: '', training_mode: 'Online', programming_language: '', start_date: '', end_date: '', class_start_time: '', max_students: 45 });
+      setForm({ batch_name: '', trainer_id: trainers[0]?.id || '', course_name: '', training_mode: 'Online', programming_language: '', start_date: '', end_date: '', class_start_time: '', class_end_time: '', max_students: 45 });
       load();
+      loadPending();
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to create batch.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const openPendingReminder = async (batch) => {
+    try {
+      const res = await getBatchStudents(batch.id);
+      const roster = res.data.map((s) => ({
+        id: s.id,
+        name: displayName(s),
+        personal_email: s.personal_email,
+        official_email: s.official_email,
+      }));
+      setEmailModal({
+        trainer: { name: trainerDisplayName(batch), email: batch.trainer_email },
+        roster,
+        form: { batch_name: batch.name, course_name: batch.course_name || batch.name, start_date: batch.start_date },
+        batchId: batch.id,
+      });
+    } catch (err) {
+      setError('Failed to load batch roster.');
+    }
+  };
+
+  const handleModalClose = () => {
+    setEmailModal(null);
+    loadPending();
   };
 
   const inputStyle = {
@@ -292,6 +346,41 @@ export default function BatchGrouping() {
     <DashboardShell title="Batch Grouping">
       {error && <p style={{ color: '#DC2626', fontSize: '13px', marginBottom: '16px' }}>{error}</p>}
       {success && <p style={{ color: '#059669', fontSize: '13px', marginBottom: '16px' }}>{success}</p>}
+
+      {/* Pending Notifications */}
+      {!loadingPending && pendingBatches.length > 0 && (
+        <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '12px', padding: '18px 20px', marginBottom: '20px' }}>
+          <h3 style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 600, fontSize: '14px', color: '#92400E', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertTriangle size={16} /> Pending Notifications ({pendingBatches.length})
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {pendingBatches.map((b) => (
+              <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: '8px', padding: '10px 14px', flexWrap: 'wrap', gap: '8px' }}>
+                <div>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: '13px', color: '#1E1B4B', margin: 0 }}>{b.name}</p>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '11px', color: '#76777D', margin: '2px 0 0' }}>
+                    {!b.trainer_notified && !b.welcome_email_sent
+                      ? 'Trainer not notified & students not welcomed'
+                      : !b.trainer_notified
+                      ? 'Trainer not notified'
+                      : 'Students not welcomed'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => openPendingReminder(b)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    background: '#0051D5', color: '#fff', border: 'none', borderRadius: '6px',
+                    padding: '7px 14px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: '12px',
+                  }}
+                >
+                  <Mail size={13} /> Send Now
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '20px' }}>
@@ -370,13 +459,18 @@ export default function BatchGrouping() {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
             <div>
-              <label style={labelStyle}>Daily Class Time</label>
+              <label style={labelStyle}>Daily Class Start Time</label>
               <input type="time" value={form.class_start_time} onChange={(e) => setForm({ ...form, class_start_time: e.target.value })} style={inputStyle} />
             </div>
             <div>
-              <label style={labelStyle}>Max Students</label>
-              <input type="number" value={form.max_students} onChange={(e) => setForm({ ...form, max_students: Number(e.target.value) })} style={inputStyle} />
+              <label style={labelStyle}>Daily Class End Time</label>
+              <input type="time" value={form.class_end_time} onChange={(e) => setForm({ ...form, class_end_time: e.target.value })} style={inputStyle} />
             </div>
+          </div>
+
+          <div style={{ marginBottom: '14px' }}>
+            <label style={labelStyle}>Max Students</label>
+            <input type="number" value={form.max_students} onChange={(e) => setForm({ ...form, max_students: Number(e.target.value) })} style={inputStyle} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
@@ -414,7 +508,8 @@ export default function BatchGrouping() {
           trainer={emailModal.trainer}
           roster={emailModal.roster}
           form={emailModal.form}
-          onClose={() => setEmailModal(null)}
+          batchId={emailModal.batchId}
+          onClose={handleModalClose}
         />
       )}
     </DashboardShell>
