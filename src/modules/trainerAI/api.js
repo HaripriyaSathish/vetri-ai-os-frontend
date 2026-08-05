@@ -166,3 +166,7 @@ export const emailZoneReport = (batchId, period) =>
   axiosInstance.post('/trainer/email-zone-report/', { batch_id: batchId, period });
 
 export const deleteBatch = (id) => axiosInstance.delete(`/trainer/batches/${id}/`);
+
+export const getHolidays = (batchId) => axiosInstance.get(`/trainer/holidays/?batch_id=${batchId}`);
+export const createHoliday = (data) => axiosInstance.post('/trainer/holidays/', data);
+export const deleteHoliday = (id) => axiosInstance.delete(`/trainer/holidays/${id}/`);

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import DashboardShell from '../../../core/layout/DashboardShell';
 import { useAuth } from '../../../core/auth/AuthContext';
-import { getBatches, getBatchStudents, getAttendance, markAttendance, getTrainingLog } from '../api';
-import { CheckCircle2, XCircle, Clock, Save, Download } from 'lucide-react';
+import { getBatches, getBatchStudents, getAttendance, markAttendance, getTrainingLog, getHolidays, createHoliday, deleteHoliday } from '../api';
+import { CheckCircle2, XCircle, Clock, Save, Download, CalendarOff, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 
 const STATUS_OPTIONS = [
@@ -38,6 +38,14 @@ export default function Attendance() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [downloading, setDownloading] = useState(false);
 
+  // Holidays
+  const [showHolidays, setShowHolidays] = useState(false);
+  const [holidays, setHolidays] = useState([]);
+  const [holidayDate, setHolidayDate] = useState('');
+  const [holidayReason, setHolidayReason] = useState('');
+  const [holidaySaving, setHolidaySaving] = useState(false);
+  const [holidayError, setHolidayError] = useState('');
+
   useEffect(() => {
     getBatches().then((res) => {
       setBatches(res.data);
@@ -51,11 +59,17 @@ export default function Attendance() {
     getBatchStudents(selectedBatch)
       .then((res) => setStudents(res.data))
       .finally(() => setStudentsLoading(false));
+    loadHolidays();
   }, [selectedBatch]);
 
   useEffect(() => {
     if (selectedBatch && date) loadAttendance();
   }, [selectedBatch, date]);
+
+  const loadHolidays = () => {
+    if (!selectedBatch) return;
+    getHolidays(selectedBatch).then((res) => setHolidays(res.data)).catch(() => setHolidays([]));
+  };
 
   const loadAttendance = async () => {
     setLoading(true);
@@ -101,6 +115,36 @@ export default function Attendance() {
     }
   };
 
+  const handleAddHoliday = async () => {
+    if (!canMarkAttendance) return;
+    setHolidayError('');
+    if (!holidayDate) {
+      setHolidayError('Pick a date first.');
+      return;
+    }
+    setHolidaySaving(true);
+    try {
+      await createHoliday({ batch: selectedBatch, date: holidayDate, reason: holidayReason || 'Holiday' });
+      setHolidayDate('');
+      setHolidayReason('');
+      loadHolidays();
+    } catch (err) {
+      setHolidayError(err.response?.data?.non_field_errors?.[0] || 'Failed to add holiday. It may already exist for this date.');
+    } finally {
+      setHolidaySaving(false);
+    }
+  };
+
+  const handleDeleteHoliday = async (id) => {
+    if (!canMarkAttendance) return;
+    try {
+      await deleteHoliday(id);
+      loadHolidays();
+    } catch (err) {
+      setHolidayError('Failed to delete holiday.');
+    }
+  };
+
   const exportTrainingLog = (rows, filenamePrefix) => {
   const headers = [
     'S.NO', 'DATE', 'TRAINER NAME', 'TRAINEE NAME', 'STATUS',
@@ -134,13 +178,13 @@ export default function Attendance() {
     if (worksheet[cellRef]) worksheet[cellRef].s = headerStyle;
   });
 
-  // Color the Status column (E) per row based on value
   dataRows.forEach((row, rowIdx) => {
     const status = row[4];
     const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: 4 });
     if (worksheet[cellRef]) {
+      const isHoliday = typeof status === 'string' && status.startsWith('Holiday');
       worksheet[cellRef].s = {
-        fill: { fgColor: { rgb: statusColColor[status] || 'FFFFFF' } },
+        fill: { fgColor: { rgb: isHoliday ? 'D9E2F3' : (statusColColor[status] || 'FFFFFF') } },
         font: { bold: true },
         alignment: { horizontal: 'center' },
       };
@@ -148,7 +192,7 @@ export default function Attendance() {
   });
 
   worksheet['!cols'] = [
-    { wch: 6 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 12 },
+    { wch: 6 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 18 },
     { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 18 }, { wch: 20 },
   ];
 
@@ -173,7 +217,7 @@ export default function Attendance() {
 
       const res = await getTrainingLog(selectedBatch, startStr, endStr);
       if (res.data.length === 0) {
-        setError('No lesson plans/attendance found for this week.');
+        setError('No class days found for this week (Mon–Sat).');
         return;
       }
       const batchName = batches.find((b) => b.id == selectedBatch)?.name || 'Batch';
@@ -196,7 +240,7 @@ export default function Attendance() {
 
       const res = await getTrainingLog(selectedBatch, firstDay, lastDay);
       if (res.data.length === 0) {
-        setError('No lesson plans/attendance found for this month.');
+        setError('No class days found for this month.');
         return;
       }
       const batchName = batches.find((b) => b.id == selectedBatch)?.name || 'Batch';
@@ -268,7 +312,68 @@ export default function Attendance() {
           >
             <Download size={16} /> {downloading ? 'Generating...' : 'Download Monthly Log'}
           </button>
+          {canMarkAttendance && (
+            <button
+              onClick={() => setShowHolidays((v) => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                background: '#fff', color: '#7C3AED', border: '1px solid #7C3AED', borderRadius: '8px',
+                padding: '9px 16px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: '13px',
+                height: '38px',
+              }}
+            >
+              <CalendarOff size={16} /> {showHolidays ? 'Hide Holidays' : 'Manage Holidays'}
+            </button>
+          )}
         </div>
+
+        {showHolidays && canMarkAttendance && (
+          <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #E2E8F0' }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', color: '#76777D', margin: '0 0 12px' }}>
+              Mark holidays so weekly/monthly reports show them explicitly instead of silently skipping the day.
+            </p>
+            {holidayError && <p style={{ color: '#DC2626', fontSize: '12px', marginBottom: '10px' }}>{holidayError}</p>}
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'end', marginBottom: '16px', flexWrap: 'wrap' }}>
+              <div>
+                <label style={labelStyle}>Date</label>
+                <input type="date" value={holidayDate} onChange={(e) => setHolidayDate(e.target.value)} style={inputStyle} />
+              </div>
+              <div style={{ flex: 1, minWidth: '200px' }}>
+                <label style={labelStyle}>Reason</label>
+                <input value={holidayReason} onChange={(e) => setHolidayReason(e.target.value)} placeholder="e.g. Independence Day" style={{ ...inputStyle, width: '100%' }} />
+              </div>
+              <button
+                onClick={handleAddHoliday}
+                disabled={holidaySaving}
+                style={{
+                  background: '#7C3AED', color: '#fff', border: 'none', borderRadius: '8px',
+                  padding: '9px 16px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: '13px', height: '38px',
+                }}
+              >
+                {holidaySaving ? 'Adding...' : 'Add Holiday'}
+              </button>
+            </div>
+            {holidays.length === 0 ? (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '13px', color: '#76777D' }}>No holidays marked for this batch yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {holidays.map((h) => (
+                  <div key={h.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#F8FAFC', borderRadius: '6px', padding: '8px 12px' }}>
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '13px', color: '#1E1B4B' }}>
+                      {h.date} — {h.reason}
+                    </span>
+                    <button
+                      onClick={() => handleDeleteHoliday(h.id)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626' }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {error && <p style={{ color: '#DC2626', fontSize: '13px', marginBottom: '12px' }}>{error}</p>}

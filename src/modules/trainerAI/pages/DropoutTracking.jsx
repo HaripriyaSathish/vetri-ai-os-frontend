@@ -78,7 +78,7 @@ export default function DropoutTracking() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#F8FAFC' }}>
-                {['Student', 'Status', 'Absence Streak', 'Discontinued Date', 'Reason', 'Action'].map((h) => (
+                {['Student', 'Status', 'Current Streak', 'Total Absent Days', 'Discontinued Date', 'Reason', 'Action'].map((h) => (
                   <th key={h} style={thStyle}>{h}</th>
                 ))}
               </tr>
@@ -100,6 +100,11 @@ export default function DropoutTracking() {
                     </span>
                   </td>
                   <td style={tdStyle}>{s.current_absence_streak} day(s)</td>
+                  <td style={tdStyle}>
+                    <span style={{ fontWeight: 600, color: s.total_absent_days > 0 ? '#DC2626' : '#76777D' }}>
+                      {s.total_absent_days} day(s)
+                    </span>
+                  </td>
                   <td style={tdStyle}>{s.discontinued_date || '—'}</td>
                   <td style={tdStyle}>{s.discontinued_reason || '—'}</td>
                   <td style={tdStyle}>

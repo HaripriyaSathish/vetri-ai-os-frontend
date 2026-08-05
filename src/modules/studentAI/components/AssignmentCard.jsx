@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Mail, Copy, Check, Image, FileText, Link2 } from 'lucide-react';
+import { Mail, Copy, Check, Image, FileText, Link2, ShieldCheck, Clock } from 'lucide-react';
 import SubmitAssignmentModal from './SubmitAssignmentModal';
 
-const CATEGORY_LABEL = { task: 'Daily Task', mini_project: 'Mini Project', main_project: 'Main Project' };
+const CATEGORY_LABEL = { task: 'Daily Task', mini_project: 'Mini Project', main_project: 'Main Project', seminar: 'Seminar' };
 
 function renderInline(text, keyPrefix) {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).filter(Boolean);
@@ -140,9 +140,20 @@ export default function AssignmentCard({ assignment, onSubmitted }) {
 
       {submission ? (
         <div style={{ marginTop: '16px', borderRadius: '10px', background: '#ECFDF5', padding: '14px 16px' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '13px', fontWeight: 600, color: '#0F7A37', margin: 0 }}>
-            Submitted {submission.submitted_at} {submission.on_time ? '' : '(late)'}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '13px', fontWeight: 600, color: '#0F7A37', margin: 0 }}>
+              Submitted {submission.submitted_at} {submission.on_time ? '' : '(late)'}
+            </p>
+            {submission.verified ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#DCFCE7', color: '#059669', padding: '3px 10px', borderRadius: '999px', fontFamily: 'Inter, sans-serif', fontSize: '11px', fontWeight: 600 }}>
+                <ShieldCheck size={12} /> Verified
+              </span>
+            ) : (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#FEF3C7', color: '#D97706', padding: '3px 10px', borderRadius: '999px', fontFamily: 'Inter, sans-serif', fontSize: '11px', fontWeight: 600 }}>
+                <Clock size={12} /> Pending Verification
+              </span>
+            )}
+          </div>
           {submission.score != null && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '13px', color: '#1E1B4B', margin: '6px 0 0' }}>Score: {submission.score} / 100</p>}
           {submission.remarks && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '13px', color: '#76777D', margin: '4px 0 0' }}>{submission.remarks}</p>}
         </div>

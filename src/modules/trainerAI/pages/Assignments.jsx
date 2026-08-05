@@ -66,6 +66,11 @@ export default function Assignments() {
   const [logError, setLogError] = useState('');
   const [logSuccess, setLogSuccess] = useState('');
 
+  // Edit remarks (inline row) state
+  const [editingSubmissionId, setEditingSubmissionId] = useState(null);
+  const [editRemarks, setEditRemarks] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+
   useEffect(() => {
     getBatches().then((res) => {
       setBatches(res.data);
@@ -199,6 +204,30 @@ export default function Assignments() {
       loadSubmissions();
     } catch (err) {
       setError('Failed to update score.');
+    }
+  };
+
+  const handleVerifiedToggle = async (submissionId, verifiedValue) => {
+    if (!canEdit) return;
+    try {
+      await updateSubmission(submissionId, { verified: verifiedValue });
+      loadSubmissions();
+    } catch (err) {
+      setError('Failed to update verification status.');
+    }
+  };
+
+  const handleSaveEdit = async (submissionId) => {
+    if (!canEdit) return;
+    setEditSaving(true);
+    try {
+      await updateSubmission(submissionId, { remarks: editRemarks });
+      setEditingSubmissionId(null);
+      loadSubmissions();
+    } catch (err) {
+      setError('Failed to save changes.');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -571,47 +600,111 @@ export default function Assignments() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#F8FAFC' }}>
-                {['Student', 'Assignment', 'Submitted', 'Due Date', 'Status', 'Score'].map((h) => (
+                {['Student', 'Assignment', 'Submitted', 'Due Date', 'Status', 'Score', 'Verified', 'Edit'].map((h) => (
                   <th key={h} style={thStyle}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {submissions.map((s) => (
-                <tr key={s.id}>
-                  <td style={tdStyle}>{displayName(s)}</td>
-                  <td style={tdStyle}>{s.assignment_title}</td>
-                  <td style={tdStyle}>{new Date(s.submitted_at).toLocaleDateString()}</td>
-                  <td style={tdStyle}>{s.due_date}</td>
-                  <td style={tdStyle}>
-                    <span
-                      style={{
-                        padding: '3px 10px', borderRadius: '6px', fontFamily: 'Inter, sans-serif',
-                        fontWeight: 600, fontSize: '11px',
-                        background: s.on_time ? '#DCFCE7' : '#FEE2E2',
-                        color: s.on_time ? '#059669' : '#DC2626',
-                      }}
-                    >
-                      {s.on_time ? 'On Time' : 'Late'}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      defaultValue={s.score ?? ''}
-                      placeholder="—"
-                      disabled={!canEdit}
-                      onBlur={(e) => handleScoreChange(s.id, e.target.value)}
-                      style={{
-                        width: '60px', padding: '4px 8px', border: '1px solid #C6C6CD',
-                        borderRadius: '6px', fontFamily: 'Inter, sans-serif', fontSize: '12px',
-                        opacity: canEdit ? 1 : 0.5, cursor: canEdit ? 'text' : 'not-allowed',
-                      }}
-                    />
-                  </td>
-                </tr>
+                <>
+                  <tr key={s.id}>
+                    <td style={tdStyle}>{displayName(s)}</td>
+                    <td style={tdStyle}>{s.assignment_title}</td>
+                    <td style={tdStyle}>{new Date(s.submitted_at).toLocaleDateString()}</td>
+                    <td style={tdStyle}>{s.due_date}</td>
+                    <td style={tdStyle}>
+                      <span
+                        style={{
+                          padding: '3px 10px', borderRadius: '6px', fontFamily: 'Inter, sans-serif',
+                          fontWeight: 600, fontSize: '11px',
+                          background: s.on_time ? '#DCFCE7' : '#FEE2E2',
+                          color: s.on_time ? '#059669' : '#DC2626',
+                        }}
+                      >
+                        {s.on_time ? 'On Time' : 'Late'}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        defaultValue={s.score ?? ''}
+                        placeholder="—"
+                        disabled={!canEdit}
+                        onBlur={(e) => handleScoreChange(s.id, e.target.value)}
+                        style={{
+                          width: '60px', padding: '4px 8px', border: '1px solid #C6C6CD',
+                          borderRadius: '6px', fontFamily: 'Inter, sans-serif', fontSize: '12px',
+                          opacity: canEdit ? 1 : 0.5, cursor: canEdit ? 'text' : 'not-allowed',
+                        }}
+                      />
+                    </td>
+                    <td style={tdStyle}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: canEdit ? 'pointer' : 'default' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!s.verified}
+                          disabled={!canEdit}
+                          onChange={(e) => handleVerifiedToggle(s.id, e.target.checked)}
+                        />
+                        {s.verified ? (
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '11px', fontWeight: 600, color: '#059669' }}>Verified</span>
+                        ) : (
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '11px', color: '#76777D' }}>Not yet</span>
+                        )}
+                      </label>
+                    </td>
+                    <td style={tdStyle}>
+                      {canEdit && (
+                        <button
+                          onClick={() => {
+                            if (editingSubmissionId === s.id) {
+                              setEditingSubmissionId(null);
+                            } else {
+                              setEditingSubmissionId(s.id);
+                              setEditRemarks(s.remarks || '');
+                            }
+                          }}
+                          style={{
+                            background: 'none', border: '1px solid #C6C6CD', borderRadius: '6px',
+                            padding: '4px 10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: '11px', fontWeight: 600, color: '#0051D5',
+                          }}
+                        >
+                          {editingSubmissionId === s.id ? 'Close' : 'Edit'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                  {editingSubmissionId === s.id && (
+                    <tr key={`${s.id}-edit`}>
+                      <td colSpan={8} style={{ padding: '14px 20px', background: '#F8FAFC', borderBottom: '1px solid #F1F5F9' }}>
+                        <label style={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', fontWeight: 600, color: '#1E1B4B', display: 'block', marginBottom: '6px' }}>
+                          Remarks
+                        </label>
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                          <input
+                            value={editRemarks}
+                            onChange={(e) => setEditRemarks(e.target.value)}
+                            placeholder='e.g. "Verified completed via email attachment"'
+                            style={{ flex: 1, padding: '8px 10px', border: '1px solid #C6C6CD', borderRadius: '6px', fontFamily: 'Inter, sans-serif', fontSize: '13px' }}
+                          />
+                          <button
+                            onClick={() => handleSaveEdit(s.id)}
+                            disabled={editSaving}
+                            style={{
+                              background: '#059669', color: '#fff', border: 'none', borderRadius: '6px',
+                              padding: '8px 14px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: '12px',
+                            }}
+                          >
+                            {editSaving ? 'Saving...' : 'Save'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
               ))}
             </tbody>
           </table>
